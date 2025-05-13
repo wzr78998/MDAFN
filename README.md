@@ -14,9 +14,6 @@
 
 This repository contains the official implementation of the paper **"Mutual Distillation Attribute Fusion Network for Multimodal Vehicle Object Detection"**. Our research introduces an innovative attribute fusion network based on mutual distillation mechanisms for multimodal vehicle detection tasks.
 
-<div align="center">
-  <img src="path/to/architecture_diagram.png" alt="MDAFN Architecture" width="800px">
-</div>
 
 ## 🔧 Requirements
 
@@ -68,7 +65,8 @@ dataset/M3FD/
 ## ⚙️ Model Training
 
 Start training with a pre-trained model:
-
+The pre-trained model can be got at: https://pan.baidu.com/s/1igHuE74X2e-u4RD0dcp0Yw code:2htu
+The dataset can be got at: https://drive.google.com/file/d/1C8kkYkj1Xls6UtvJ4h6UajiPcvaQ7eeI/view?usp=sharing
 ```bash
 python tools/train.py --config configs/MDAFN/MDAFN.yml --load_pre path/to/pretrained.pth --device cuda:0
 ```
