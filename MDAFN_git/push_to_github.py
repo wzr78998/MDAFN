@@ -38,6 +38,69 @@ def convert_ssh_to_https(ssh_url):
         return f"https://{domain}/{username}/{repo}"
     return ssh_url
 
+def handle_push_rejection(stdout_stderr, remote_url, branch):
+    """Handle rejected pushes with appropriate actions."""
+    if "fetch first" in stdout_stderr or "Updates were rejected because the remote contains work" in stdout_stderr:
+        print("\n⚠️ Push rejected because remote repository has content not in your local repository.")
+        print("Options:")
+        print("1. Pull remote changes first, then push (merge approach)")
+        print("2. Force push your changes (overwrites remote content)")
+        print("3. Create a new branch and push to that instead")
+        print("4. Abort and resolve manually")
+        
+        choice = input("\nSelect option [1]: ") or "1"
+        
+        if choice == "1":
+            # Pull then push approach
+            print("\nPulling remote changes...")
+            stdout, code = run_command(f"git pull --no-edit origin {branch}")
+            
+            # Check if there were conflicts
+            if "CONFLICT" in stdout or code != 0:
+                print("\n❌ Merge conflicts detected. Please resolve conflicts manually.")
+                print("After resolving, commit changes and run this script again.")
+                return False
+            
+            print("\nPushing with merged changes...")
+            stdout, code = run_command(f"git push origin {branch}")
+            return code == 0
+            
+        elif choice == "2":
+            # Force push approach
+            print("\n⚠️ WARNING: Force pushing will OVERWRITE remote repository content!")
+            confirm = input("Are you sure? This cannot be undone (y/n): ").lower()
+            if confirm == "y":
+                print("\nForce pushing changes...")
+                stdout, code = run_command(f"git push --force origin {branch}")
+                return code == 0
+            else:
+                print("\nForce push aborted.")
+                return False
+                
+        elif choice == "3":
+            # New branch approach
+            new_branch = input("\nEnter new branch name: ")
+            if not new_branch:
+                print("No branch name provided. Aborting.")
+                return False
+                
+            # Create and checkout new branch
+            stdout, code = run_command(f"git checkout -b {new_branch}")
+            if code != 0:
+                print(f"\n❌ Failed to create branch '{new_branch}'.")
+                return False
+                
+            # Push to new branch
+            print(f"\nPushing to new branch '{new_branch}'...")
+            stdout, code = run_command(f"git push -u origin {new_branch}")
+            return code == 0
+            
+        else:  # choice == "4" or any other input
+            print("\nOperation aborted. You can resolve this manually or run the script again.")
+            return False
+    
+    return False
+
 def main():
     print("\n===== MDAFN GitHub Upload Tool =====\n")
     
@@ -154,13 +217,18 @@ def main():
         
         # Push to GitHub
         print(f"\nPushing code to GitHub (branch: {use_branch})...")
-        stdout, code = run_command(f"git push -u origin {use_branch}")
+        stdout, code = run_command(f"git push -u origin {use_branch}", check=False)
         
         if code == 0:
             print(f"\n✅ Repository successfully created and code pushed to GitHub!")
             print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
         else:
-            print("\n❌ Push failed. Please check your token permissions and try again.")
+            # Handle rejected push situation
+            if handle_push_rejection(stdout, remote_url, use_branch):
+                print(f"\n✅ Repository successfully updated and code pushed to GitHub!")
+                print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
+            else:
+                print("\n❌ Push failed. Please check your token permissions and try again.")
     else:
         # For existing repository
         print("\nEnter the GitHub repository URL:")
@@ -212,16 +280,20 @@ def main():
             stdout, code = run_command(f'git remote set-url origin {remote_url}')
         
         print(f"\nPushing code to GitHub (branch: {use_branch})...")
-        stdout, code = run_command(f"git push -u origin {use_branch}")
+        stdout, code = run_command(f"git push -u origin {use_branch}", check=False)
         
         if code == 0:
             print(f"\n✅ Code successfully pushed to GitHub!")
         else:
-            print("\n❌ Push failed. Please check your repository URL and permissions.")
-            print("\nIf you're using an SSH URL and getting 'Permission denied (publickey)' errors:")
-            print("1. Either set up SSH keys (see GitHub docs)")
-            print("2. Or use HTTPS URL with a personal access token instead")
-            print("   Run this script again and select option 2 when prompted.")
+            # Handle rejected push situation
+            if handle_push_rejection(stdout, remote_url, use_branch):
+                print(f"\n✅ Code successfully pushed to GitHub!")
+            else:
+                print("\n❌ Push failed. Please check your repository URL and permissions.")
+                print("\nIf you're using an SSH URL and getting 'Permission denied (publickey)' errors:")
+                print("1. Either set up SSH keys (see GitHub docs)")
+                print("2. Or use HTTPS URL with a personal access token instead")
+                print("   Run this script again and select option 2 when prompted.")
 
 if __name__ == "__main__":
     main() 

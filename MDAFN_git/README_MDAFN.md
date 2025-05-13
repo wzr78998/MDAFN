@@ -2,9 +2,7 @@
 
 <div align="center">
   
-# MDAFN - Mutual Distillation Attribute Fusion Network
-
-**Advanced Multimodal Vehicle Detection with Feature Fusion**
+# MDAFN - Mutual Distillation Attribute Fusion Network for Multimodal Vehicle Object Detectio
 
 [![Python](https://img.shields.io/badge/Python-3.6+-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.7+-ee4c2c.svg)](https://pytorch.org/)
