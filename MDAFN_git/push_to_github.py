@@ -56,6 +56,9 @@ def main():
     if not os.path.exists(".git"):
         print("\nInitializing Git repository...")
         run_command("git init")
+        
+        # For new repos, set default branch to main
+        run_command("git checkout -b main")
     
     # Configure Git credentials
     git_name = input("\nEnter your name for Git commits: ")
@@ -81,6 +84,25 @@ def main():
     commit_message = input("\nEnter commit message (default: Initial commit): ") or "Initial commit"
     print("\nCommitting changes...")
     run_command(f'git commit -m "{commit_message}"')
+    
+    # Determine branch name
+    branch_name_output, _ = run_command("git branch --show-current", verbose=False)
+    current_branch = branch_name_output.strip() or "main"
+    
+    # Ask user which branch to use, default to main
+    print(f"\nCurrent branch: {current_branch}")
+    use_branch = input(f"Enter branch name to push (default: main): ") or "main"
+    
+    # If user wants to use a different branch, create and switch to it
+    if use_branch != current_branch:
+        print(f"\nSwitching to branch '{use_branch}'...")
+        stdout, code = run_command(f"git checkout -b {use_branch}")
+        if code != 0:
+            # Branch might already exist
+            stdout, code = run_command(f"git checkout {use_branch}")
+            if code != 0:
+                print(f"Error creating or switching to branch '{use_branch}'. Using current branch '{current_branch}'.")
+                use_branch = current_branch
     
     # Create repository on GitHub
     create_repo = input("\nCreate new repository on GitHub? (y/n): ").lower() == 'y'
@@ -130,13 +152,9 @@ def main():
             # If remote already exists, set the URL
             stdout, code = run_command(f'git remote set-url origin {remote_url}')
         
-        # Determine default branch name
-        branch_name_output, _ = run_command("git branch --show-current", verbose=False)
-        branch_name = branch_name_output.strip() or "main"  # Default to main if no branch exists
-        
         # Push to GitHub
-        print(f"\nPushing code to GitHub (branch: {branch_name})...")
-        stdout, code = run_command(f"git push -u origin {branch_name}")
+        print(f"\nPushing code to GitHub (branch: {use_branch})...")
+        stdout, code = run_command(f"git push -u origin {use_branch}")
         
         if code == 0:
             print(f"\n✅ Repository successfully created and code pushed to GitHub!")
@@ -193,12 +211,8 @@ def main():
             # If remote already exists, update it
             stdout, code = run_command(f'git remote set-url origin {remote_url}')
         
-        # Get current branch
-        branch_name_output, _ = run_command("git branch --show-current", verbose=False)
-        branch_name = branch_name_output.strip() or "main"  # Default to main if no branch exists
-        
-        print(f"\nPushing code to GitHub (branch: {branch_name})...")
-        stdout, code = run_command(f"git push -u origin {branch_name}")
+        print(f"\nPushing code to GitHub (branch: {use_branch})...")
+        stdout, code = run_command(f"git push -u origin {use_branch}")
         
         if code == 0:
             print(f"\n✅ Code successfully pushed to GitHub!")
