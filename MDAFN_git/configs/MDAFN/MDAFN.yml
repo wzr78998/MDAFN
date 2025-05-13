@@ -1,0 +1,54 @@
+__include__: [
+  '../dataset/m3fd_detection.yml',
+  '../runtime.yml',
+  './include/dataloader.yml',
+  './include/optimizer.yml',
+  './include/MDAFNv2_r50vd.yml',
+]
+
+# 可以使用预训练模型
+# tuning: MDAFNv2_pytorch/configs/MDAFNv2/model/MDAFNv2_r50vd_6x_coco_ema.pth
+
+output_dir: ./output/MDAFNv2_multimodal_r50vd_dsp_1x_m3fd
+
+# 使用多模态模型
+model: MultiModalMDAFN
+num_classes: 6
+
+MultiModalMDAFN:
+  backbone: PResNet
+  encoder: HybridEncoder
+  decoder: MDAFNTransformerv2
+
+
+PResNet:
+  depth: 50
+  variant: d
+  freeze_at: -1
+  freeze_norm: False
+  pretrained: True
+
+HybridEncoder:
+  in_channels: [512, 1024, 2048]
+  hidden_dim: 256
+  expansion: 1.0
+
+MDAFNTransformerv2:
+  cross_attn_method: discrete  # 使用离散注意力方法，与原dsp模型保持一致
+
+epoches: 100  # 与原dsp模型保持一致
+
+train_dataloader: 
+  dataset: 
+    transforms:
+      policy:
+        epoch: 80  # 与原dsp模型保持一致
+  collate_fn:
+    type: MultiModalBatchImageCollateFuncion
+    scales: [480, 512, 544, 576, 608, 640, 640, 640, 672, 704, 736, 768, 800]
+    stop_epoch: 80  # 与原dsp模型保持一致
+  total_batch_size: 6
+
+val_dataloader:
+  collate_fn:
+    type: MultiModalBatchImageCollateFuncion 

@@ -1,0 +1,40 @@
+task: detection
+
+evaluator:
+  type: CocoEvaluator
+  iou_types: ['bbox', ]
+
+num_classes: 6  # M3FD有6个类别
+
+train_dataloader: 
+  type: DataLoader
+  dataset: 
+    type: M3FDDetection
+    root: #你的数据集路径，VOC格式，到Main文件夹目录
+    ann_file: trainval.txt
+    label_file: label_list.txt
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  num_workers: 4
+  drop_last: True 
+  collate_fn:
+    type: BatchImageCollateFuncion
+
+
+val_dataloader:
+  type: DataLoader
+  dataset: 
+    type: M3FDDetection
+    root: #你的数据集路径，VOC格式，到Main文件夹目录
+    ann_file: val.txt
+    label_file: label_list.txt
+    transforms:
+      type: Compose
+      ops: ~ 
+  shuffle: False
+  num_workers: 4
+  drop_last: False
+  collate_fn:
+    type: BatchImageCollateFuncion 
