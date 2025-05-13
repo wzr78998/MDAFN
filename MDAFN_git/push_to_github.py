@@ -2,27 +2,34 @@
 import os
 import subprocess
 import sys
+import time
 from getpass import getpass
 
-def run_command(command, verbose=True):
+def run_command(command, verbose=True, check=True, timeout=30):
     """Run a system command and return the output."""
     try:
-        result = subprocess.run(command, capture_output=True, text=True, shell=True, check=True)
+        result = subprocess.run(command, capture_output=True, text=True, shell=True, check=check, timeout=timeout)
         if verbose and result.stdout:
             print(result.stdout)
-        return result.stdout.strip() if result.stdout else ""
+        return result.stdout.strip() if result.stdout else "", result.returncode
     except subprocess.CalledProcessError as e:
-        print(f"Error executing command: {command}")
-        print(f"Error: {e.stderr}")
-        sys.exit(1)
+        if verbose:
+            print(f"Error executing command: {command}")
+            print(f"Error: {e.stderr}")
+        return e.stderr, e.returncode
+    except subprocess.TimeoutExpired:
+        print(f"Command timed out: {command}")
+        return "", 1
+    except Exception as e:
+        print(f"Exception running command: {str(e)}")
+        return "", 1
 
 def main():
     print("\n===== MDAFN GitHub Upload Tool =====\n")
     
     # Check if git is installed
-    try:
-        run_command("git --version", verbose=False)
-    except Exception:
+    stdout, code = run_command("git --version", verbose=False)
+    if code != 0:
         print("Git is not installed or not in PATH. Please install Git first.")
         sys.exit(1)
     
@@ -68,41 +75,75 @@ def main():
         is_private = input("Make repository private? (y/n): ").lower() == 'y'
         private_flag = "--private" if is_private else "--public"
         
-        # Create GitHub repository using GitHub CLI if available, or guide user to create manually
-        try:
-            # Try using GitHub CLI (gh)
-            run_command("gh --version", verbose=False)
+        # Check if GitHub CLI is available
+        stdout, code = run_command("gh --version", verbose=False, check=False)
+        has_gh_cli = code == 0
+        
+        # GitHub CLI approach
+        if has_gh_cli:
             print("\nCreating GitHub repository using GitHub CLI...")
+            stdout, code = run_command(f'gh repo create {repo_name} {private_flag} --description "{repo_description}" --source=. --remote=origin --push')
             
-            run_command(f'gh repo create {repo_name} {private_flag} --description "{repo_description}" --source=. --remote=origin --push')
-            print(f"\n✅ Repository successfully created and code pushed to GitHub!")
-            print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
-            return
-        except Exception:
-            # GitHub CLI not available, continue with manual instructions
-            pass
+            if code == 0:
+                print(f"\n✅ Repository successfully created and code pushed to GitHub!")
+                print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
+                return
+            else:
+                print("GitHub CLI encountered an error. Falling back to manual approach.")
+        else:
+            print("\nGitHub CLI (gh) is not installed. Using personal access token method instead.")
         
         # GitHub Personal Access Token approach
         print("\nTo create a repository and push your code, you'll need a GitHub Personal Access Token.")
-        print("Go to https://github.com/settings/tokens and create a token with 'repo' permissions.")
-        token = getpass("Enter your GitHub Personal Access Token: ")
+        print("Please follow these steps:")
+        print("1. Go to https://github.com/settings/tokens")
+        print("2. Click 'Generate new token' (classic)")
+        print("3. Give it a name (e.g. 'MDAFN Upload')")
+        print("4. Select at least the 'repo' scope")
+        print("5. Click 'Generate token' and copy the token")
+        
+        token = getpass("\nEnter your GitHub Personal Access Token: ")
+        
+        # Create the repository via API if needed
+        # Note: this is optional as the push can create the repo too
+        print("\nSetting up remote repository...")
         
         # Set the remote origin
         remote_url = f"https://{github_username}:{token}@github.com/{github_username}/{repo_name}.git"
-        run_command(f'git remote add origin {remote_url}')
+        stdout, code = run_command(f'git remote add origin {remote_url}')
+        
+        if code != 0:
+            # If remote already exists, set the URL
+            stdout, code = run_command(f'git remote set-url origin {remote_url}')
+        
+        # Determine default branch name
+        branch_name_output, _ = run_command("git branch --show-current", verbose=False)
+        branch_name = branch_name_output.strip() or "main"  # Default to main if no branch exists
         
         # Push to GitHub
-        print("\nPushing code to GitHub...")
-        run_command("git push -u origin master")
+        print(f"\nPushing code to GitHub (branch: {branch_name})...")
+        stdout, code = run_command(f"git push -u origin {branch_name}")
         
-        print(f"\n✅ Repository successfully created and code pushed to GitHub!")
-        print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
+        if code == 0:
+            print(f"\n✅ Repository successfully created and code pushed to GitHub!")
+            print(f"🌐 Repository URL: https://github.com/{github_username}/{repo_name}")
+        else:
+            print("\n❌ Push failed. Please check your token permissions and try again.")
     else:
         # For existing repository
         remote_url = input("\nEnter the GitHub repository URL: ")
         run_command(f'git remote add origin {remote_url}')
-        run_command("git push -u origin master")
-        print(f"\n✅ Code successfully pushed to GitHub!")
+        
+        # Get current branch
+        branch_name_output, _ = run_command("git branch --show-current", verbose=False)
+        branch_name = branch_name_output.strip() or "main"  # Default to main if no branch exists
+        
+        stdout, code = run_command(f"git push -u origin {branch_name}")
+        
+        if code == 0:
+            print(f"\n✅ Code successfully pushed to GitHub!")
+        else:
+            print("\n❌ Push failed. Please check your repository URL and permissions.")
 
 if __name__ == "__main__":
     main() 
