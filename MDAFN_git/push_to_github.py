@@ -3,6 +3,7 @@ import os
 import subprocess
 import sys
 import time
+import re
 from getpass import getpass
 
 def run_command(command, verbose=True, check=True, timeout=30):
@@ -23,6 +24,19 @@ def run_command(command, verbose=True, check=True, timeout=30):
     except Exception as e:
         print(f"Exception running command: {str(e)}")
         return "", 1
+
+def is_ssh_url(url):
+    """Check if the URL is an SSH URL."""
+    return url.startswith("git@") or ":" in url and "@" in url
+
+def convert_ssh_to_https(ssh_url):
+    """Convert an SSH URL to HTTPS format."""
+    # Pattern: git@github.com:username/repo.git -> https://github.com/username/repo.git
+    match = re.match(r"git@([^:]+):([^/]+)/(.+)", ssh_url)
+    if match:
+        domain, username, repo = match.groups()
+        return f"https://{domain}/{username}/{repo}"
+    return ssh_url
 
 def main():
     print("\n===== MDAFN GitHub Upload Tool =====\n")
@@ -131,19 +145,69 @@ def main():
             print("\n❌ Push failed. Please check your token permissions and try again.")
     else:
         # For existing repository
-        remote_url = input("\nEnter the GitHub repository URL: ")
-        run_command(f'git remote add origin {remote_url}')
+        print("\nEnter the GitHub repository URL:")
+        print("Note: For HTTPS format use: https://github.com/username/repo.git")
+        
+        remote_url = input("> ")
+        
+        # Check if SSH URL and warn user
+        if is_ssh_url(remote_url):
+            print("\n⚠️ You provided an SSH URL, which requires SSH keys to be configured.")
+            print("Options:")
+            print("1. Continue with SSH URL (will work only if you have SSH keys set up)")
+            print("2. Switch to HTTPS URL (recommended)")
+            print("3. Setup SSH keys (more advanced)")
+            
+            choice = input("\nSelect option [2]: ") or "2"
+            
+            if choice == "2":
+                # Convert to HTTPS URL
+                https_url = convert_ssh_to_https(remote_url)
+                print(f"\nConverting to HTTPS URL: {https_url}")
+                print("Using personal access token for authentication...")
+                
+                token = getpass("Enter your GitHub Personal Access Token: ")
+                # Format for git: https://username:token@github.com/username/repo.git
+                user_match = re.search(r"github\.com[/:]([^/]+)/", https_url)
+                if user_match:
+                    repo_owner = user_match.group(1)
+                    auth_url = https_url.replace("https://", f"https://{github_username}:{token}@")
+                    remote_url = auth_url
+                else:
+                    print("Could not parse username from URL. Using as-is.")
+            elif choice == "3":
+                print("\nTo set up SSH keys, follow these steps:")
+                print("1. Check if you already have SSH keys: ls -la ~/.ssh")
+                print("2. If not, create a new key: ssh-keygen -t ed25519 -C 'your_email@example.com'")
+                print("3. Start the ssh-agent: eval '$(ssh-agent -s)'")
+                print("4. Add your key: ssh-add ~/.ssh/id_ed25519")
+                print("5. Copy your public key: clip < ~/.ssh/id_ed25519.pub (Windows) or pbcopy < ~/.ssh/id_ed25519.pub (Mac)")
+                print("6. Add this key to your GitHub account: https://github.com/settings/keys")
+                print("\nTry running this script again after setting up SSH keys.")
+                return
+        
+        # Set the remote
+        stdout, code = run_command(f'git remote add origin {remote_url}')
+        
+        if code != 0:
+            # If remote already exists, update it
+            stdout, code = run_command(f'git remote set-url origin {remote_url}')
         
         # Get current branch
         branch_name_output, _ = run_command("git branch --show-current", verbose=False)
         branch_name = branch_name_output.strip() or "main"  # Default to main if no branch exists
         
+        print(f"\nPushing code to GitHub (branch: {branch_name})...")
         stdout, code = run_command(f"git push -u origin {branch_name}")
         
         if code == 0:
             print(f"\n✅ Code successfully pushed to GitHub!")
         else:
             print("\n❌ Push failed. Please check your repository URL and permissions.")
+            print("\nIf you're using an SSH URL and getting 'Permission denied (publickey)' errors:")
+            print("1. Either set up SSH keys (see GitHub docs)")
+            print("2. Or use HTTPS URL with a personal access token instead")
+            print("   Run this script again and select option 2 when prompted.")
 
 if __name__ == "__main__":
     main() 
