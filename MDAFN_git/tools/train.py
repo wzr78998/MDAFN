@@ -41,9 +41,9 @@ if __name__ == '__main__':
     # 创建一个类似于argparse解析出的参数对象
     class Args:
         def __init__(self):
-            self.config = '/home/skj/zw/RT-MD/MDAFN/configs/MDAFN/MDAFN.yml'
+            self.config = 'MDAFN/configs/MDAFN/MDAFN.yml'
             self.resume = None
-            self.load_pre= '/home/skj/zw/RT-MD/MDAFN/tools/pretrained.pth'
+            self.load_pre= 'MDAFN/tools/pretrained.pth'
             self.device = 'cuda:0'
             self.seed = 42
             self.use_amp = True
